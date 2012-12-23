@@ -1,0 +1,349 @@
+<html>
+<head>
+    <style type="text/css">
+     .slidingDiv {
+        background-color: #99CCFF;
+        padding:20px;
+        margin-top:10px;
+        border-bottom:5px solid #3399FF;
+        height: 400;
+    }
+    .slidingDivInfo {        
+    }
+    .nav {
+        background-color: #009990;        
+    }
+    .nav li {
+        display: inline;
+        list-style-type: none;
+        padding-right: 20px;
+    }
+    .nav li a:hover {
+        color: red;
+    } 
+    .show_hide {
+        display:none;
+    }
+  </style>
+
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.3.2/jquery.js" type="text/javascript"></script>
+
+    <script type="application/javascript">
+    
+    var http = createRequestObject();
+    function createRequestObject() {	
+        var objAjax;	
+        var browser = navigator.appName;	
+        if(browser == "Microsoft Internet Explorer"){		
+            objAjax = new ActiveXObject("Microsoft.XMLHTTP");	
+        }
+        else{
+        	objAjax = new XMLHttpRequest();	
+        }
+        return objAjax;
+     }
+     function addNewSlideDivContent(source){
+        http.open('get',source);
+        http.onreadystatechange = function(){
+            if(http.readyState == 4){
+                $(".slidingDivInfo").html(http.responseText);
+            }
+        };
+        http.send(null);
+        return false;
+     }     
+    
+    function setPixel(imageData, x, y, r, g, b, a) {
+    
+        var index = (x + y * imageData.width) * 4;
+        imageData.data[index+0] = r;
+        imageData.data[index+1] = g;
+        imageData.data[index+2] = b;
+        imageData.data[index+3] = a;
+        
+    }
+    
+    // Creates an object with x and y defined,
+       // set to the mouse position relative to the state's canvas
+       // If you wanna be super-correct this can be tricky,
+       // we have to worry about padding and borders
+     function getMouse(e) {
+           var element = this.canvas, offsetX = 0, offsetY = 0, mx, my;
+         
+           // Compute the total offset
+           if (element.offsetParent !== undefined) {
+               do {
+                  offsetX += element.offsetLeft;
+                  offsetY += element.offsetTop;
+               } while ((element = element.offsetParent));
+           }
+           
+         
+           // Add padding and border style widths to offset
+           // Also add the <html> offsets in case there's a position:fixed bar
+           if (this.stylePaddingLeft !== undefined)
+                offsetX += this.stylePaddingLeft;// 
+           if (this.styleBorderLeft !== undefined)
+                offsetX += this.styleBorderLeft;
+           if (this.htmlLeft !== undefined)
+                offsetX += this.htmlLeft;
+           if (this.stylePaddingTop !== undefined)
+                offsetY += this.stylePaddingTop; 
+           if (this.styleBorderTop !== undefined)
+                offsetY += this.StyleBorderTop;
+           if (this.htmlTop !== undefined)
+                offsetY += htmlTop;       
+         
+           mx = e.pageX - offsetX;
+           my = e.pageY - offsetY;
+           // We return a simple javascript object (a hash) with x and y defined
+           return {x: mx, y: my};
+    }
+    
+	var _albums;
+    
+    function AlbumImage(w, h, src, info, sample)
+    {
+        this.w = w || 1;
+        this.h = h || 1;
+        this.src = src;        
+        this.state = "normal";
+        this.canvas = document.createElement("canvas");
+        this.context = this.canvas.getContext("2d");        
+        var albumDiv = document.getElementById("albums");
+	    this.albumInfo = info;
+	    this.sample = sample;
+        
+        this.canvas.width = w;
+        this.canvas.height = h;
+        this.canvas.style.marginLeft = "20px";
+        this.image = new Image();
+	    
+	    var myAlbumImage = this;
+	    
+	    albumDiv.appendChild(this.canvas);
+	    
+        AlbumImage.prototype.drawAlbumImage = function(x,y, width, height) {	    
+            return function() {myAlbumImage.context.drawImage(myAlbumImage.image, x, y, width, height);
+                               myAlbumImage.origImageData = myAlbumImage.context.getImageData(0, 0, myAlbumImage.w, myAlbumImage.h);	    
+                               }
+        }        
+	    
+	    this.image.onload = myAlbumImage.drawAlbumImage(0, 0, myAlbumImage.w, myAlbumImage.h);
+	    this.image.src = src;
+        
+        // Determine if a point is inside the shape's bounds
+        AlbumImage.prototype.contains = function(mx, my) {
+          // All we have to do is make sure the Mouse X,Y fall in the area between
+          // the shape's X and (X + Height) and its Y and (Y + Height)
+          return  (this.x <= mx) && (this.x + this.w >= mx) &&
+                  (this.y <= my) && (this.y + this.h >= my);
+        }        
+        
+        AlbumImage.prototype.makeBlue = function() {
+            var imageData = this.context.getImageData(0, 0, this.w, this.h);
+            for (var y = 0; y < this.h; y++) {                
+                var inpos = y * this.w * 4; // *4 for 4 ints per pixel
+                var outpos = inpos;//inpos + canwid * 4;
+                for (var x = 0; x < myAlbumImage.w; x++) {
+                    var r = imageData.data[inpos++] / 3; // less red
+                    var g = imageData.data[inpos++] / 3; // less green
+                    var b = imageData.data[inpos++] * 5; // MORE BLUE
+                    var a = imageData.data[inpos++];     // same alpha
+
+                    b = Math.min(255, b); // clamp to [0..255]
+
+                    imageData.data[outpos++] = r;
+                    imageData.data[outpos++] = g;
+                    imageData.data[outpos++] = b;
+                    imageData.data[outpos++] = a;
+                }
+            }
+
+            // copy the image data back onto the canvas
+            this.context.putImageData(imageData, 0, 0);
+            this.state = "blue";
+        }
+        
+        AlbumImage.prototype.makeGrayScale = function() {
+            var imageData = this.context.getImageData(0, 0, this.w, this.h);
+            for (var y = 0; y < this.h; y++) {                
+                var inpos = y * this.w * 4; // *4 for 4 ints per pixel
+                var outpos = inpos;//inpos + canwid * 4;
+                for (var x = 0; x < myAlbumImage.w; x++) {
+                    var r = imageData.data[inpos++]; 
+                    var g = imageData.data[inpos++];
+                    var b = imageData.data[inpos++];
+                    var avg = (r+g+b) / 3;
+                    var a = imageData.data[inpos++];     // same alpha
+
+                    imageData.data[outpos++] = avg;
+                    imageData.data[outpos++] = avg;
+                    imageData.data[outpos++] = avg;
+                    imageData.data[outpos++] = a;
+                }
+            }
+
+            // copy the image data back onto the canvas
+            this.context.putImageData(imageData, 0, 0);
+            this.state = "grayscale";
+        }
+        
+        this.canvas.addEventListener('mouseout', function(e) {
+            if (myAlbumImage.state == "blue" || myAlbumImage.state == "grayscale")
+            {
+                myAlbumImage.context.putImageData(myAlbumImage.origImageData, 0, 0);
+                myAlbumImage.state = "normal";
+            }
+        }, true);
+        this.canvas.addEventListener('mousemove', function(e) {
+            if (myAlbumImage.state == "normal")
+                myAlbumImage.makeGrayScale();
+          //var mouse = getMouse(e);
+          //debug.innerHTML = mouse.x + " " + mouse.y;
+          /*var canvasImages = myState.canvasImages;          
+          myState.mouseX = mouse.x;
+          myState.mouseY = mouse.y;
+          var l = canvasImages.length;
+          for (var i = 0; i < l; i++) {
+            if (canvasImages[i].contains(mouse.x, mouse.y) && canvasImages[i].state == "normal") {
+                canvasImages[i].makeBlue(ctx);                
+                break;
+            }            
+          }*/
+
+       }, true);
+       
+       this.canvas.addEventListener('click', function(e) {               
+          
+            myAlbumImage.state = "selected";
+          
+            var len = _albums.albumImages.length;
+          
+            var selected = null;
+            for (var i = 0; i < len; i++) {
+                if (_albums.albumImages[i].state == "selected" && _albums.albumImages[i].src != myAlbumImage.src)
+                {
+                    _albums.albumImages[i].state = "normal";
+                    _albums.albumImages[i].canvas.width /= 2;
+                    _albums.albumImages[i].canvas.height /= 2;
+                    _albums.albumImages[i].context.drawImage(_albums.albumImages[i].image, 0, 0, _albums.albumImages[i].canvas.width, _albums.albumImages[i].canvas.height);
+                    _albums.albumImages[i].canvas.style.marginLeft = "20px";
+                }
+                albumDiv.removeChild(_albums.albumImages[i].canvas);
+                albumDiv.appendChild(_albums.albumImages[i].canvas);
+            }          
+            
+            albumDiv.removeChild(myAlbumImage.canvas);
+            myAlbumImage.canvas.width *= 2;
+            myAlbumImage.canvas.height *= 2;
+            myAlbumImage.canvas.style.marginLeft = "120px";            
+            myAlbumImage.context.drawImage(myAlbumImage.image, 0, 0, myAlbumImage.canvas.width, myAlbumImage.canvas.height);
+            albumDiv.appendChild(myAlbumImage.canvas);
+                      
+                      
+            $(".slidingDiv").show();
+            addNewSlideDivContent(myAlbumImage.albumInfo);
+            var oAudio = document.getElementById('myaudio');
+            oAudio.src = myAlbumImage.sample;
+            
+            // create a new pixel array
+            //var imageData = ctx.createImageData(canwid, canheight);            
+            
+            // draw random dots
+            /*for (var i = 0; i < 10000; i++) {
+                var x = Math.random() * canwid | 0; // |0 to truncate to Int32
+                var y = Math.random() * canheight | 0;
+                var r = Math.random() * 256 | 0;
+                var g = Math.random() * 256 | 0;
+                var b = Math.random() * 256 | 0;
+                setPixel(imageData, x, y, r, g, b, 255); // 255 opaque
+            }*/            
+	   }, true);
+    }
+    
+    function Albums() {
+        
+        this.selection = 0;
+        this.albumImages = [];
+        
+        var albums = this;
+        
+        Albums.prototype.addImage = function(image) {
+            albums.albumImages.push(image);
+        }       
+    }
+
+    function trim1(str) {
+    	return str.replace(/^\s\s*/, '').replace(/\s\s*$/, '');
+    }    
+
+    function init() {
+            var debug = document.getElementById("debug");
+            _albums = new Albums();
+	    /*for (var i = 1; i <= 4; i++)
+	    {
+	        var src = "./" + i + ".jpg";
+	        var albInfo = "info" + i + ".txt";
+	        var sample = "./samples/" + i + ".mp3";
+	        var albImg = new AlbumImage(100, 100, src, albInfo, sample);
+
+		    _albums.addImage(albImg);
+ 	     }*/
+	     
+	     var url="MusicReader.php";
+	     var mp3s = [];
+	     $.getJSON(url,function(json){				
+                     $.each(json.songs,function(i,post){
+			            var mp3 = new Object;			
+			            mp3.path = "./samples/" + post.filename;
+			            mp3.album = post.album;				    
+	                            mp3s.push(mp3);
+                     });
+	             
+	             for (i=0; i<mp3s.length; i++)
+	             {
+		            var albInfo = mp3s[i].album + ".txt";
+			        var imgPath = mp3s[i].album + ".jpg"
+		            var albImg = new AlbumImage(100, 100, imgPath, albInfo, mp3s[i].path);
+		            _albums.addImage(albImg);
+	             }	  
+	     });	           
+            
+            $(".slidingDiv").hide();
+            //$(".slidingDiv").height(400);            
+            /*$(".show_hide").show();
+            $('.show_hide').click(function(){
+                $(".slidingDiv").slideToggle();
+            });*/            
+	      //}
+    }    
+    </script>
+
+</head>
+<body onload="init();">
+    <div id="navigation">
+    <ul class="nav">				
+		<li><a href="about.html">About</a></li>
+		<li><a href="contact.html">Contact</a></li>
+		<li><a href="blog.html">Blog</a></li>
+		<li><a href="store.html">Store</a></li>		
+	</ul>
+	</div>
+
+    <div id="albums">
+    </div>
+    <!--<a href="#" id="show_hide" class="show_hide">Show/hide</a>-->
+    <div id="debug">
+    </div>
+    <div class="slidingDiv">
+        <!--Fill this space with really interesting content. <a href="#" class="show_hide">hide</a>-->
+        <div class="slidingDivInfo">some stupid info</div>
+        <div class="audioPlayer">
+        <audio id="myaudio" controls>
+          HTML5 audio not supported
+        </audio> 
+        </div>
+    </div>       
+</body>
+</html>
